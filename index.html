@@ -26,7 +26,7 @@
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
-<body><div style="position:fixed;right:8px;top:8px;font-size:11px;color:#9aa4b2;z-index:9999">v0.11.1</div>
+<body><div style="position:fixed;right:8px;top:8px;font-size:11px;color:#9aa4b2;z-index:9999">v0.11.2</div>
 <div class="drive-check-gate hidden" id="driveCheckGate"><div class="drive-check-card"><h2>Google Driveの状態確認</h2><p>別の端末で更新されたデータがないか確認してから利用を開始します。確認済み状態は同日中3時間有効です。画面ロックや他アプリへの切り替えだけでは再確認しません。</p><button class="btn primary" id="driveCheckNowBtn">Driveを確認</button><div class="row hidden" id="driveCheckResolveActions" style="margin-top:10px"><button class="btn" id="gateDriveLoadBtn" style="flex:1">Driveから読込</button><button class="btn" id="gateDriveBackupBtn" style="flex:1">Driveへバックアップ</button></div><p class="drive-check-note" id="driveCheckGateNote">Google認証画面は、このボタンを押した操作を起点に開きます。</p></div></div>
 <div class="wrap">
   <div class="top"><div><div class="title">Training Log</div><div class="date" id="todayLabel"></div></div><div class="row"><button class="btn small header-home-btn" id="homeBtn" type="button" title="ホーム" aria-label="ホーム"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v9.7a.5.5 0 0 1-.5.5h-5.8v-6.2H9.3V21H3.5a.5.5 0 0 1-.5-.5z"/></svg></button><button class="btn small" id="notesBtn">ノート</button><button class="btn small" id="manageBtn">種目管理</button><button class="btn small" id="historyBtn">履歴</button><button class="btn small" id="analyticsBtn">分析</button></div></div>
@@ -222,13 +222,14 @@ const DRIVE_APP_FOLDER='TrainingLog';
 const DRIVE_FOLDER_MIME='application/vnd.google-apps.folder';
 const DRIVE_APP_KEY='trainingLogApp';
 const DRIVE_APP_VALUE='v1';
-let driveToken='';let driveTokenExpiresAt=0;let tokenClient=null;let tokenPromise=null;
+let driveToken='';let driveTokenExpiresAt=0;let tokenClient=null;let tokenPromise=null;let driveGateMode='check';
 function formatBackupTime(iso){if(!iso)return '未実施';const d=new Date(iso);if(Number.isNaN(d.getTime()))return '未実施';return d.toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
 function setDriveStatus(text,state=''){driveStatusLabel.textContent=`Google Drive：${text}`;driveDot.className='drive-dot'+(state?` ${state}`:'');}
 function isDriveCheckFresh(){const at=localStorage.getItem(DRIVE_CHECKED_AT_KEY),day=localStorage.getItem(DRIVE_CHECKED_DATE_KEY);if(!at||day!==localDate())return false;const t=new Date(at).getTime();return Number.isFinite(t)&&Date.now()-t>=0&&Date.now()-t<DRIVE_CHECK_VALID_MS;}
-function markDriveChecked(){const now=new Date().toISOString();localStorage.setItem(DRIVE_CHECKED_AT_KEY,now);localStorage.setItem(DRIVE_CHECKED_DATE_KEY,localDate());hideDriveCheckGate();renderSyncMeta();}
-function setDriveGateResolveActions(show=false){driveCheckResolveActions.classList.toggle('hidden',!show);}
-function showDriveCheckGate(){if(!isDriveCheckFresh()){driveCheckGate.classList.remove('hidden');setDriveGateResolveActions(false);driveCheckGateNote.textContent='Google認証画面は、このボタンを押した操作を起点に開きます。';setDriveStatus('状態確認が必要');}}
+function markDriveChecked(){const now=new Date().toISOString();localStorage.setItem(DRIVE_CHECKED_AT_KEY,now);localStorage.setItem(DRIVE_CHECKED_DATE_KEY,localDate());driveGateMode='check';hideDriveCheckGate();renderSyncMeta();}
+function setDriveGateResolveActions(show=false){driveCheckResolveActions.classList.toggle('hidden',!show);driveCheckNowBtn.classList.toggle('hidden',show);}
+function setDriveGateResolveMode(note){driveGateMode='resolve';driveCheckGate.classList.remove('hidden');setDriveGateResolveActions(true);driveCheckGateNote.textContent=note||'Driveから読込：端末内をDriveで置換 / Driveへバックアップ：Driveを端末内で置換';}
+function showDriveCheckGate(){if(!isDriveCheckFresh()){driveCheckGate.classList.remove('hidden');if(driveGateMode==='resolve'){setDriveGateResolveActions(true);}else{setDriveGateResolveActions(false);driveCheckGateNote.textContent='Google認証画面は、このボタンを押した操作を起点に開きます。';setDriveStatus('状態確認が必要');}}}
 function hideDriveCheckGate(){driveCheckGate.classList.add('hidden');setDriveGateResolveActions(false);}
 function refreshDriveCheckGate(){if(isDriveCheckFresh())hideDriveCheckGate();else showDriveCheckGate();}
 function renderSyncMeta(){
@@ -248,7 +249,7 @@ function renderSyncMeta(){
 function markDirty(){localStorage.setItem(DIRTY_KEY,'1');localStorage.setItem(DATA_UPDATED_AT_KEY,new Date().toISOString());renderSyncMeta();}
 function markBackup(modifiedTime=''){localStorage.setItem(LAST_BACKUP_KEY,new Date().toISOString());localStorage.setItem(DIRTY_KEY,'0');if(modifiedTime)localStorage.setItem(DRIVE_MODIFIED_KEY,modifiedTime);renderSyncMeta();}
 function markLoad(fileName,exportedAt,modifiedTime='',dataUpdatedAt=''){localStorage.setItem(LAST_LOAD_KEY,new Date().toISOString());localStorage.setItem(LAST_LOAD_FILE_KEY,fileName||'');if(exportedAt)localStorage.setItem(LAST_LOAD_EXPORT_KEY,exportedAt);else localStorage.removeItem(LAST_LOAD_EXPORT_KEY);localStorage.setItem(DIRTY_KEY,'0');if(modifiedTime)localStorage.setItem(DRIVE_MODIFIED_KEY,modifiedTime);if(dataUpdatedAt)localStorage.setItem(DATA_UPDATED_AT_KEY,dataUpdatedAt);renderSyncMeta();}
-async function backupObj(){const images=[];for(const img of await allStore(IMAGE_STORE))images.push({id:img.id,exerciseId:img.exerciseId,name:img.name||'',createdAt:img.createdAt||'',type:img.blob?.type||'image/jpeg',dataUrl:await blobToDataURL(img.blob)});const noteImages=[];for(const img of await allStore(NOTE_IMAGE_STORE))noteImages.push({id:img.id,noteId:img.noteId,name:img.name||'',createdAt:img.createdAt||'',type:img.blob?.type||'image/jpeg',dataUrl:await blobToDataURL(img.blob)});return {version:9,exportedAt:new Date().toISOString(),dataUpdatedAt:localStorage.getItem(DATA_UPDATED_AT_KEY)||new Date().toISOString(),appVersion:'0.11.1',exercises:exerciseMaster,sessions:(await allSessions()).map(normalizeSession),images,notes:await allNotes(),noteImages}}
+async function backupObj(){const images=[];for(const img of await allStore(IMAGE_STORE))images.push({id:img.id,exerciseId:img.exerciseId,name:img.name||'',createdAt:img.createdAt||'',type:img.blob?.type||'image/jpeg',dataUrl:await blobToDataURL(img.blob)});const noteImages=[];for(const img of await allStore(NOTE_IMAGE_STORE))noteImages.push({id:img.id,noteId:img.noteId,name:img.name||'',createdAt:img.createdAt||'',type:img.blob?.type||'image/jpeg',dataUrl:await blobToDataURL(img.blob)});return {version:9,exportedAt:new Date().toISOString(),dataUpdatedAt:localStorage.getItem(DATA_UPDATED_AT_KEY)||new Date().toISOString(),appVersion:'0.11.2',exercises:exerciseMaster,sessions:(await allSessions()).map(normalizeSession),images,notes:await allNotes(),noteImages}}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 async function waitForGoogle(){for(let i=0;i<60;i++){if(window.google?.accounts?.oauth2)return;await new Promise(r=>setTimeout(r,100));}throw new Error('Google認証ライブラリを読み込めませんでした。ネット接続を確認してください。');}
 async function ensureDriveToken(forcePrompt=false){
@@ -322,14 +323,14 @@ async function performDriveCheck(){
       return true;
     }
     if(!known){
-      if(dirty){alert('Google Driveに既存バックアップがあり、この端末にも未バックアップの変更があります。\nどちらを基準にするか確認してから「Driveから読込」または「Driveへバックアップ」を実行してください。\n\n状態を解消するまで通常利用は開始しません。');setDriveStatus('競合を確認してください','error');setDriveGateResolveActions(true);driveCheckGateNote.textContent='Driveから読込：端末内をDriveで置換 / Driveへバックアップ：Driveを端末内で置換';return false;}
+      if(dirty){alert('Google Driveに既存バックアップがあり、この端末にも未バックアップの変更があります。\nどちらを基準にするか確認してから「Driveから読込」または「Driveへバックアップ」を実行してください。\n\n状態を解消するまで通常利用は開始しません。');setDriveStatus('競合を確認してください','error');setDriveGateResolveMode('Driveから読込：端末内をDriveで置換 / Driveへバックアップ：Driveを端末内で置換');return false;}
       if(confirm('Google Driveにこの端末とは異なるバックアップがあります。\n\nDriveから読み込みますか？'))driveLoadBtn.click();
-      else{setDriveStatus('Drive読込が必要','error');setDriveGateResolveActions(true);driveCheckGateNote.textContent='Drive側が新しいため、通常利用の前にDriveから読み込んでください。';}
+      else{setDriveStatus('Drive読込が必要','error');setDriveGateResolveMode('Drive側が新しいため、通常利用の前にDriveから読み込んでください。');}
       return false;
     }
-    if(dirty){alert('この端末とGoogle Driveの両方に変更があります。\n内容を確認してから「Driveから読込」または「Driveへバックアップ」を選択してください。\n\n状態を解消するまで通常利用は開始しません。');setDriveStatus('競合を確認してください','error');setDriveGateResolveActions(true);driveCheckGateNote.textContent='Driveから読込：端末内をDriveで置換 / Driveへバックアップ：Driveを端末内で置換';return false;}
+    if(dirty){alert('この端末とGoogle Driveの両方に変更があります。\n内容を確認してから「Driveから読込」または「Driveへバックアップ」を選択してください。\n\n状態を解消するまで通常利用は開始しません。');setDriveStatus('競合を確認してください','error');setDriveGateResolveMode('Driveから読込：端末内をDriveで置換 / Driveへバックアップ：Driveを端末内で置換');return false;}
     if(confirm('Google Driveにこの端末より新しいバックアップがあります。\n\nDriveから読み込みますか？'))driveLoadBtn.click();
-    else{setDriveStatus('Drive読込が必要','error');setDriveGateResolveActions(true);driveCheckGateNote.textContent='Drive側が新しいため、通常利用の前にDriveから読み込んでください。';}
+    else{setDriveStatus('Drive読込が必要','error');setDriveGateResolveMode('Drive側が新しいため、通常利用の前にDriveから読み込んでください。');}
     return false;
   }catch(err){setDriveStatus('確認失敗','error');alert(`Google Driveの状態確認に失敗しました：${err.message||err}`);return false;}
 }
