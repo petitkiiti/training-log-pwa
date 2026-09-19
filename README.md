@@ -1,0 +1,92 @@
+# Training Log PWA v0.10.4
+
+個人向けのPPLトレーニング記録PWAです。v0.10.4ではGoogle Drive API連携、種目管理のPPL表示フィルターに加え、上部ナビゲーションにホームボタンを追加しています。
+
+## 主な機能
+
+- Push / Pull / Legs の記録
+- 重量・回数・セット数を同一条件でまとめて入力
+- 種目マスタの追加・更新・削除
+- 種目ごとのポイント / メモ、参考画像（最大2枚）
+- 月 → 日付 → 種目の履歴
+- 種目別分析（最大負荷・総ボリューム・推定1RM）
+- IndexedDBへの端末内保存
+- Google Drive APIによる `training-data.json` の直接作成・更新・読込
+- 手動JSON保存/読込、CSV出力（非常用・移行用）
+
+## Google Drive OAuth
+
+この版には次のWeb OAuth Client IDだけを組み込んでいます。
+
+`160770788863-7i2cneav2mp51odgj8nscho15pr1j4ls.apps.googleusercontent.com`
+
+Client IDはブラウザアプリで公開される前提の識別子です。Client Secret、Googleアカウントのメールアドレス、パスワードはアプリに含めていません。
+
+要求スコープは以下だけです。
+
+`https://www.googleapis.com/auth/drive.file`
+
+Google Drive全体を読む権限ではなく、このアプリが作成・利用するファイルに限定した権限です。
+
+## Drive同期の使い方
+
+1. 初回に「Google Driveに接続」を押してGoogleの認証/同意を行います。
+2. 「Driveへバックアップ」で、Drive上のこのアプリ用 `training-data.json` を作成または更新します。
+3. 別端末で編集したあとはこちらの端末で編集する前に「Driveから読込」を実行します。
+4. Drive側がこの端末の最終確認後に更新されている状態でローカル変更を上書きしようとすると警告します。
+
+アクセストークンは短時間で期限切れになりますが、アプリには保存しません。必要になったときGoogle Identity Servicesから再取得します。Google側の認証状態・既存の同意が利用できる場合は再同意は不要ですが、状況によって再接続が必要になることがあります。
+
+## 重要な制約
+
+- PCでのOAuth動作確認は、Google Cloudの「承認済みのJavaScript生成元」に登録した `http://localhost:8000` から開いてください。
+- `http://192.168.x.x:8000` のようなLAN内IPはGoogle OAuthの本番利用先として扱えません。iPhoneで使う最終配信元はHTTPSで用意し、そのoriginをOAuthクライアントへ追加する必要があります。
+- 現在、参考画像はJSON内にBase64で含まれます。画像が増えると `training-data.json` は大きくなります。画像をDrive上の別ファイルへ分離する方式は未実装です。
+- 同時編集向けの完全なサーバー側ロックはありません。Driveの更新時刻を使って別端末更新を検知し、上書き前に警告します。個人利用で「別端末を使う前にDriveから読込」の運用を前提にしています。
+- オフライン中もIndexedDBへの記録はできますが、Drive同期にはネット接続が必要です。
+
+## ローカル起動
+
+フォルダ内で以下を実行します。
+
+```bash
+python -m http.server 8000 --bind 0.0.0.0
+```
+
+PCのブラウザではOAuth確認のため、`http://localhost:8000` を開いてください。
+
+## 初期データ
+
+このリポジトリには個人のトレーニング履歴や種目マスタは含まれていません。初回は「種目管理」から追加するか、既存バックアップJSONを読み込んでください。
+
+## Git管理上の注意
+
+個人履歴・バックアップJSON・OAuth設定JSON・Client SecretはGitHubへ入れないでください。`.gitignore` に代表的なOAuth設定JSON名も追加しています。
+
+
+## v0.10.0 additions
+- Google Drive backup is stored under `Personal Apps/TrainingLog/training-data.json`; folders are created automatically. Existing app-created root backup is moved into the folder when found.
+- Added Notes: title, long-form content, up to 2 images, create/edit/delete.
+- Added history editing and deletion, including date, PPL, times, meal, exercises, load/reps/sets, and overall notes.
+- Notes and note images are included in JSON/Drive backups.
+
+
+## v0.10.1 fix
+- Google Drive接続時に `ensureDriveToken is not defined` となる不具合を修正。
+
+
+## v0.10.2 additions
+- 種目管理に Push / Pull / Leg のチェックボックスを追加。
+- 初期状態はすべて未選択。チェックした区分の種目だけ表示。
+- 複数区分の同時表示に対応。
+
+
+## v0.10.3 additions
+- ノート・種目管理・履歴・分析の上部に「⌂ ホーム」ボタンを追加
+- 従来の「← 戻る」ボタンはそのまま残しています
+
+
+## v0.10.4 changes
+- ホームボタンを各サブ画面内ではなく、上部ナビゲーションの左端へ移動。
+- 家型アイコンのみのコンパクトなホームボタンに変更。
+- 画面右上のバージョン表示を v0.10.4 に修正。

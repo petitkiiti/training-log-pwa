@@ -1,0 +1,20 @@
+# Personal workout exports / backups
+training-backup-*.json
+training-*.csv
+PRIVATE-*.json
+private/
+data/
+
+# Environment / secrets
+client_secret*.json
+oauth*.json
+credentials*.json
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
