@@ -31,7 +31,7 @@
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
-<body><div style="position:fixed;right:8px;top:8px;font-size:11px;color:#9aa4b2;z-index:9999">v0.11.6</div>
+<body><div style="position:fixed;right:8px;top:8px;font-size:11px;color:#9aa4b2;z-index:9999">v0.11.8</div>
 <div class="drive-check-gate hidden" id="driveCheckGate"><div class="drive-check-card"><h2>Google Driveの状態確認</h2><p>別の端末で更新されたデータがないか確認してから利用を開始します。確認済み状態は同日中3時間有効です。画面ロックや他アプリへの切り替えだけでは再確認しません。</p><button class="btn primary" id="driveCheckNowBtn">Driveを確認</button><div class="row hidden" id="driveCheckResolveActions" style="margin-top:10px"><button class="btn" id="gateDriveLoadBtn" style="flex:1">Driveから読込</button><button class="btn" id="gateDriveBackupBtn" style="flex:1">Driveへバックアップ</button></div><p class="drive-check-note" id="driveCheckGateNote">Google認証画面は、このボタンを押した操作を起点に開きます。</p></div></div>
 <button class="floating-save hidden" id="floatingSaveBtn" type="button" aria-label="トレーニングを保存">💾 保存</button>
 <div class="wrap">
@@ -206,7 +206,27 @@ function renderDraftDateNotice(){const host=document.getElementById('draftDateNo
 async function render(){todayLabel.textContent=labelDate(localDate());renderTabs();startTime.value=draft.start||'';endTime.value=draft.end||'';meal.value=draft.meal||'';overall.value=draft.overall||'';await renderExercises();await renderTodaySessions();renderDraftDateNotice();renderSaveStatus();}
 addExerciseBtn.onclick=async()=>{const name=exercisePicker.value;if(!name)return;const y=window.scrollY;const m=metaByName(name);draft.exercises.push({name,note:'',conditions:[{weight:'',reps:'10',unit:m.unit,count:3}]});markSessionUnsaved();await renderExercises();requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'}));};
 async function resetDraft(confirmIfDirty=true){if(confirmIfDirty&&sessionUnsaved&&!confirm('入力中の内容を破棄して、新しいトレーニングを開始しますか？'))return false;draft=blankDraft();localStorage.removeItem(DRAFT_KEY);markSessionSaved();await render();return true;}
-async function save(){readForm();const saved=normalizeSession({...draft,id:draft.id||newId(),date:draft.date||localDate(),type:currentType});await putSession(saved);markDirty();draft=blankDraft();localStorage.removeItem(DRAFT_KEY);markSessionSaved();await render();saveBtn.textContent='保存済み ✓';setTimeout(()=>saveBtn.textContent='トレーニングを保存',1200)}
+function collectSessionIncompleteWarnings(){
+  const warnings=[];
+  if(!String(draft.start||'').trim()||!String(draft.end||'').trim()){
+    warnings.push('開始終了時間が未入力です');
+  }
+  const hasIncompleteExercise=(draft.exercises||[]).some(e=>(e.conditions||[]).some(c=>
+    String(c.weight??'').trim()===''||
+    String(c.reps??'').trim()===''||
+    String(c.count??'').trim()===''
+  ));
+  if(hasIncompleteExercise){
+    warnings.push('入力の完了していない種目があります');
+  }
+  return warnings;
+}
+function confirmSessionIncomplete(){
+  const warnings=collectSessionIncompleteWarnings();
+  if(!warnings.length)return true;
+  return confirm(`${warnings.join('\n')}\n\nこのまま保存しますか？\n「OK」：そのまま保存 / 「キャンセル」：入力に戻る`);
+}
+async function save(){readForm();if(!confirmSessionIncomplete())return;const saved=normalizeSession({...draft,id:draft.id||newId(),date:draft.date||localDate(),type:currentType});await putSession(saved);markDirty();draft=blankDraft();localStorage.removeItem(DRAFT_KEY);markSessionSaved();await render();saveBtn.textContent='保存済み ✓';setTimeout(()=>saveBtn.textContent='トレーニングを保存',1200)}
 async function copyPreviousDay(){const all=(await allSessions()).map(normalizeSession);const prev=all.find(s=>s.type===currentType);if(!prev)return alert('同じ区分の過去記録がありません');draft={...JSON.parse(JSON.stringify(prev)),date:localDate(),start:'',end:'',meal:'',overall:'',type:currentType};delete draft.id;for(const e of draft.exercises||[])e.note='';markSessionUnsaved();render();}
 const LAST_BACKUP_KEY='training-log-last-backup';
 const LAST_LOAD_KEY='training-log-last-load';
